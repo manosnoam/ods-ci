@@ -204,21 +204,21 @@ def generate_test_config_file(
     data["DEFAULT_NOTIFICATION_EMAIL"] = config_data["DEFAULT_NOTIFICATION_EMAIL"]
     data["RHM_TOKEN"] = config_data["RHM_TOKEN"]
 
-    # # Login to test cluster using oc command
-    # oc_login(
-    #     data["OCP_CONSOLE_URL"],
-    #     data["OCP_ADMIN_USER"]["USERNAME"],
-    #     data["OCP_ADMIN_USER"]["PASSWORD"],
-    # )
+    # Login to test cluster using oc command
+    oc_login(
+        data["OCP_CONSOLE_URL"],
+        data["OCP_ADMIN_USER"]["USERNAME"],
+        data["OCP_ADMIN_USER"]["PASSWORD"],
+    )
 
-    # if bool(set_prometheus_config):
-    #     # Get prometheus token for test cluster
-    #     prometheus_token = get_prometheus_token("redhat-ods-monitoring")
-    #     data["RHODS_PROMETHEUS_TOKEN"] = prometheus_token
+    if bool(set_prometheus_config):
+        # Get prometheus token for test cluster
+        prometheus_token = get_prometheus_token("redhat-ods-monitoring")
+        data["RHODS_PROMETHEUS_TOKEN"] = prometheus_token
 
-    #     # Get prometheus url
-    #     prometheus_url = get_prometheus_url("redhat-ods-monitoring")
-    #     data["RHODS_PROMETHEUS_URL"] = prometheus_url
+        # Get prometheus url
+        prometheus_url = get_prometheus_url("redhat-ods-monitoring")
+        data["RHODS_PROMETHEUS_URL"] = prometheus_url
 
     with open(config_file, "w") as yaml_file:
         yaml_file.write(yaml.dump(data, default_flow_style=False, sort_keys=False))
