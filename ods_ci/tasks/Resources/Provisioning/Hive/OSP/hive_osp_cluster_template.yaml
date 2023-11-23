@@ -61,9 +61,10 @@ items:
       platform:
         openstack:
           cloud: ${infrastructure_configurations}[osp_cloud_name]
-          computeFlavor: m1.large
           externalDNS: null
           externalNetwork: ${infrastructure_configurations}[osp_network]
+          defaultMachinePlatform:
+            type: ocp4.bootstrap
       pullSecret: '${infrastructure_configurations}[quay_pull_sec]'
       sshKey: ${infrastructure_configurations}[ssh_key]
 - apiVersion: hive.openshift.io/v1
