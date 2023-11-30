@@ -234,7 +234,7 @@ class OpenshiftClusterManager:
     def get_osd_cluster_id(self):
         """Gets osd cluster ID"""
 
-        cluster_name = self.ocm_describe(filter="--json | jq -r '.id'")
+        cluster_name = self.ocm_describe(filter="--json | jq -r '.items[] | select(.status==\"Active\") | .id'")
         if cluster_name is None:
             log.info(
                 "Unable to retrieve cluster ID for "
@@ -246,7 +246,7 @@ class OpenshiftClusterManager:
     def get_osd_cluster_state(self):
         """Gets osd cluster state"""
 
-        cluster_state = self.ocm_describe(filter="--json | jq -r '.state'")
+        cluster_state = self.ocm_describe(filter="--json | jq -r '.items[] | select(.status==\"Active\") | .state'")
         if cluster_state is None:
             log.info(
                 "Unable to retrieve cluster state for "
@@ -258,7 +258,7 @@ class OpenshiftClusterManager:
     def get_osd_cluster_version(self):
         """Gets osd cluster version"""
 
-        cluster_version = self.ocm_describe(filter="--json | jq -r '.version.raw_id'")
+        cluster_version = self.ocm_describe(filter="--json | jq -r '.items[] | select(.status==\"Active\") | .version.raw_id'")
         if cluster_version is None:
             log.info(
                 "Unable to retrieve cluster version for "
@@ -270,8 +270,7 @@ class OpenshiftClusterManager:
     def get_osd_cluster_console_url(self):
         """Gets osd cluster console url"""
 
-        filter_str = "--json | jq -r '.console.url'"
-        cluster_console_url = self.ocm_describe(filter=filter_str)
+        cluster_console_url = self.ocm_describe(filter="--json | jq -r '.items[] | select(.status==\"Active\") | .console.url'")
         if cluster_console_url is None:
             log.info(
                 "Unable to retrieve cluster console url "
