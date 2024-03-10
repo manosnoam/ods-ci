@@ -14,9 +14,9 @@ ${ODH_DASHBOARD_PROJECT_NAME}=   Red Hat OpenShift AI
 ${ODH_DASHBOARD_SIDEBAR_HEADER_ENABLE_BUTTON}=         //*[@class="pf-v5-c-drawer__panel-main"]//button[.='Enable']
 ${ODH_DASHBOARD_SIDEBAR_HEADER_GET_STARTED_ELEMENT}=   //*[@class="pf-v5-c-drawer__panel-main"]//*[.='Get started']
 ${CARDS_XP}=  //*[(contains(@class, 'odh-card')) and (contains(@class, 'pf-v5-c-card'))]
-${CARD_BUTTON_XP}=  //input[@class="pf-v5-c-radio__input"][@name="odh-explore-selectable-card"]
+${CARD_BUTTON_XP}=  //input[@name="odh-explore-selectable-card"]
 ${RES_CARDS_XP}=  //div[contains(@data-ouia-component-type, "Card")]
-${SAMPLE_APP_CARD_XP}=   //*[@id="pachyderm-selectable-card-id"]
+${SAMPLE_APP_CARD_XP}=   //div[contains(@data-testid,"explore-card")]
 ${HEADER_XP}=  div[@class='pf-v5-c-card__header']
 ${TITLE_XP}=   div[@class='pf-v5-c-card__title']//span
 ${TITLE_XP_OLD}=  div[@class='pf-v5-c-card__title']//div/div[1]
@@ -32,7 +32,8 @@ ${IMAGE_XP_OLD}=  ${HEADER_XP}/img[contains(@class, 'odh-card__header-brand')]
 ${APPS_DICT_PATH_LATEST}=   ods_ci/tests/Resources/Files/AppsInfoDictionary_latest.json
 ${SIDEBAR_TEXT_CONTAINER_XP}=  //div[contains(@class,'odh-markdown-view')]
 ${SUCCESS_MSG_XP}=  //div[@class='pf-v5-c-alert pf-m-success']
-${PAGE_TITLE_XP}=  //*[@data-testid="app-page-title" and text()="Cluster settings"]
+${PAGE_TITLE_XP}=  //*[@data-testid="app-page-title"]
+${CLUSTER_SETTINGS_XP}=  //*[@data-testid="app-page-title" and text()="Cluster settings"]
 ${USAGE_DATA_COLLECTION_XP}=    //*[@id="usage-data-checkbox"]
 ${CUSTOM_IMAGE_SOFTWARE_TABLE}=  //caption[contains(., "the advertised software")]/../tbody
 ${CUSTOM_IMAGE_PACKAGE_TABLE}=  //caption[contains(., "the advertised packages")]/../tbody
@@ -68,11 +69,9 @@ Authorize rhods-dashboard service account
 
 Login To RHODS Dashboard
    [Arguments]  ${ocp_user_name}  ${ocp_user_pw}  ${ocp_user_auth_type}
-
    # Wait until we are in the OpenShift auth page or already in Dashboard
    ${expected_text_list}=    Create List    Log in with    Data Science Projects
    Wait Until Page Contains A String In List    ${expected_text_list}
-
    ${oauth_prompt_visible}=  Is OpenShift OAuth Login Prompt Visible
    IF  ${oauth_prompt_visible}  Click Button  Log in with OpenShift
    ${login-required}=  Is OpenShift Login Visible
@@ -100,13 +99,9 @@ Logout From RHODS Dashboard
 Wait for RHODS Dashboard to Load
     [Arguments]  ${dashboard_title}="${ODH_DASHBOARD_PROJECT_NAME}"    ${wait_for_cards}=${TRUE}
     ...          ${expected_page}=Enabled
-
     Wait For Condition    return document.title == ${dashboard_title}    timeout=15s
     Wait Until Page Contains Element    xpath:${RHODS_LOGO_XPATH}    timeout=20s
-    IF    "${expected_page}" != "${NONE}"
-        Wait Until Page Contains Element    xpath://h1[text()="${expected_page}"]
-        ...    timeout=75s
-    END
+    IF    "${expected_page}" != "${NONE}"    Wait For Dashboard Page Title    ${expected_page}    timeout=75s
     IF    ${wait_for_cards} == ${TRUE}
         Wait Until Keyword Succeeds    3 times   5 seconds
     ...   Wait Until Cards Are Loaded
@@ -339,8 +334,7 @@ Open Get Started Sidebar And Return Status
     [Arguments]  ${card_locator}
     Wait Until Element Is Visible    xpath:${card_locator}
     Wait Until Element Is Enabled     xpath:${card_locator}    timeout=20s     error=Element is not clickbale  #robocop : disable
-    ${element}=    Get WebElement    xpath:${card_locator}
-    Execute Javascript    arguments[0].click();     ARGUMENTS    ${element}
+    Click Element    ${card_locator}
     ${status}=  Run Keyword and Return Status  Wait Until Page Contains Element    xpath://div[contains(@class,'pf-v5-c-drawer__panel-main')]
     Sleep  1
     RETURN  ${status}
@@ -512,7 +506,7 @@ Verify Cluster Settings Is Available
     Page Should Contain    Settings
     Menu.Navigate To Page    Settings    Cluster settings
     Capture Page Screenshot
-    Wait Until Page Contains Element    ${PAGE_TITLE_XP}    timeout=30
+    Wait Until Page Contains Element    ${CLUSTER_SETTINGS_XP}    timeout=30
     Wait Until Page Contains Element    ${USAGE_DATA_COLLECTION_XP}    timeout=30
 
 Verify Cluster Settings Is Not Available

@@ -38,15 +38,12 @@ Login To Openshift
     ...    being automatically redirected to the destination app. Note: ${expected_text_list} should contain a
     ...    expected string in the destination app.
     [Arguments]  ${ocp_user_name}  ${ocp_user_pw}  ${ocp_user_auth_type}
-
     # Wait until page is the Login page or the destination app
     ${expected_text_list} =    Create List    Log in with    Administrator    Developer    Data Science Projects
     Wait Until Page Contains A String In List    ${expected_text_list}
-
     # Return if page is not the Login page (no login required)
-    ${should_login} =    Is Current Domain Equal To    https://oauth-openshift
+    ${should_login} =    Is Current Sub Domain Start With    https://oauth
     IF  not ${should_login}    RETURN
-
     # If here we need to login
     Wait Until Element is Visible  xpath://div[@class="pf-c-login"]  timeout=10s
     ${select_auth_type} =  Does Login Require Authentication Type

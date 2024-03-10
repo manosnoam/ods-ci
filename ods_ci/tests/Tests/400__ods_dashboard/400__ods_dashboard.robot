@@ -487,11 +487,8 @@ RHODS Dahsboard Pod Should Contain OauthProxy Container
     END
 
 Verify Jupyter Card CSS Style
-    [Documentation]    Compare the some CSS properties of the Explore page
-    ...    with the expected ones. The expected values change based
-    ...    on the RHODS version
-    CSS Property Value Should Be    locator=//pre
-    ...    property=background-color    exp_value=rgba(240, 240, 240, 1)
+    [Documentation]    Compare the some CSS properties of the Explore page with the expected ones
+    # Please try to avoid verifying unique css values (e.g. colors), that might change accross RHODS versions
     CSS Property Value Should Be    locator=${SIDEBAR_TEXT_CONTAINER_XP}//p
     ...    property=margin-bottom    exp_value=8px
     CSS Property Value Should Be    locator=${SIDEBAR_TEXT_CONTAINER_XP}/h1

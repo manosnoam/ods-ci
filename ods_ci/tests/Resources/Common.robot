@@ -97,7 +97,7 @@ CSS Property Value Should Be
     [Documentation]     Compare the actual CSS property value with the expected one
     [Arguments]   ${locator}    ${property}    ${exp_value}   ${operation}=equal
     ${el_text}=   Get Text   xpath:${locator}
-    Log    Text of the target element: ${el_text}
+    Log    Text of the target element: ${el_text}//div[contains(@class,'odh-markdown-view')]//p
     ${actual_value}=    Get CSS Property Value   xpath:${locator}    ${property}
     IF    $operation == "contains"
         Run Keyword And Continue On Failure   Should Contain    ${actual_value}    ${exp_value}
@@ -308,21 +308,21 @@ Run Keyword If RHODS Is Self-Managed
     ${is_self_managed}=    Is RHODS Self-Managed
     IF    ${is_self_managed} == True    Run Keyword    ${name}    @{arguments}
 
-Get Domain From Current URL
-    [Documentation]    Gets the lowest level domain from the current URL (i.e. everything before the first dot in the URL)
+Get Sub Domain Of Current URL
+    [Documentation]    Gets the sub-domain of the current URL (i.e. everything before the first dot in the URL)
     ...    e.g. https://console-openshift-console.apps.<cluster>.rhods.ccitredhat.com -> https://console-openshift-console
     ...    e.g. https://rhods-dashboard-redhat-ods-applications.apps.<cluster>.rhods.ccitredhat.com/ -> https://rhods-dashboard-redhat-ods-applications
     ${current_url} =    Get Location
     ${domain} =    Fetch From Left    string=${current_url}    marker=.
     RETURN    ${domain}
 
-Is Current Domain Equal To
-    [Documentation]    Compare the lowest level domain to a given string
+Is Current Sub Domain Start With
+    [Documentation]    Check if current sub-domain start with the given String
     ...   and returns True/False
     [Arguments]    ${url}
-    ${domain} =    Get Domain From Current URL
-    ${comparison} =    Run Keyword And Return Status    Should Be Equal As Strings
-    ...    ${domain}    ${url}
+    ${subdomain} =    Get Sub Domain Of Current URL
+    ${comparison} =    Run Keyword And Return Status    Should Start With
+    ...    ${subdomain}    ${url}
     RETURN    ${comparison}
 
 Get OAuth Cookie
@@ -496,3 +496,12 @@ Clear Element And Input Text
     Clear Element Text    ${element_xpath}
     Sleep    0.5s
     Input Text    ${element_xpath}    ${new_text}
+
+Wait For Dashboard Page Title
+    [Documentation]    Wait until the visible title (h1) of the current Dashboard page is '${page_title}'
+    [Arguments]  ${page_title}    ${timeout}=10s
+    ${page_title_element}=    Set Variable    //*[@data-testid="app-page-title"]
+    Wait Until Element is Visible    ${page_title_element}    timeout=${timeout}
+    # Sometimes the h1 text is inside a child element, thus get it with textContent attribute
+    ${title}=    Get Element Attribute    ${page_title_element}    textContent
+    Should Be Equal    ${title}    ${page_title}
