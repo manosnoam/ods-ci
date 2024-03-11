@@ -10,14 +10,14 @@ echo "Set Kubeconfig file path to: ${KUBECONFIG}"
 export "KUBECONFIG=${KUBECONFIG}"
 
 # feature requested for MPS pipeline onboarding
-if [ "${SET_ENVIRONMENT}" -eq 1 ]; then
-  if [ -z "${OC_HOST}" ]; then
+if [[ "${SET_ENVIRONMENT}" -eq 1 ]]; then
+  if [[ -z "${OC_HOST}" ]]; then
     echo -e "\033[0;33m You must set the OC_HOST env variable to automatically set the Test Environment for ODS-CI \033[0m"
     exit 0
   else
-    if [ "${USE_OCM_IDP}" -eq 0 ]; then
+    if [[ "${USE_OCM_IDP}" -eq 0 ]]; then
       actual_host="$(oc whoami --show-server)"
-      if [ -z "${RUN_FROM_CONTAINER}" ] && [ "${actual_host}" != "${OC_HOST}" ]; then
+      if [[ -z "${RUN_FROM_CONTAINER}" ]] && [[ "${actual_host}" != "${OC_HOST}" ]]; then
         echo "-----| USE_OCM_IDP option is disabled, but you are connected to a different cluster than ${OC_HOST}. To prevent you to change IDPs of the wrong cluster, ODS-CI stops here... |-----"
         exit 0
       fi

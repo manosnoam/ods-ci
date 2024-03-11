@@ -1,18 +1,21 @@
 #!/bin/bash
+set -e
+
 perform_oc_logic(){
-  echo "----> Performing log in the cluster using oc CLI command"
-  for i in {1..7}
-    do
-      oc login $1 --username $2 --password $3 || (echo "Login failed $i times. Trying again in 30 seconds (max 7 times)." && sleep 30)
-    done
+  echo "----> Performing log in the cluster using oc CLI command: oc login $1 --username $2 --password $3"
+  local logged_in
+  for i in {1..7} ; do
+    (oc login $1 --username $2 --password $3 && logged_in=TRUE) || (echo "Login failed $i times. Trying again in 30 seconds (max 7 times)." && sleep 30)
+  done
+  [[ -n "$logged_in" ]] || exit 1
 }
 
 perform_ocm_login(){
   echo "---> Performing log in OCM"
-  if [ -n "${OCM_TOKEN}" ]
+  if [[ -n "${OCM_TOKEN}" ]]
     then
         echo "ocm envirnment: ${OCM_ENV}"
-        if [ -n "${OCM_ENV}" ]; then \
+        if [[ -n "${OCM_ENV}" ]]; then \
                 ocm login --token=${OCM_TOKEN} --url=${OCM_ENV} ;\
         else
                 ocm login --token=${OCM_TOKEN}
@@ -89,7 +92,7 @@ function generate_users_creds(){
   if [[ "$pw" =  "<GEN_RAMDOM_PW>" ]]
       then
           pw=$(generate_rand_string "64")
-            if [ "${RETURN_PW}" -eq 1 ]
+            if [[ "${RETURN_PW}" -eq 1 ]]
               then
                   echo Random $1 pasword: $pw
             fi
@@ -130,31 +133,58 @@ function set_htpasswd_users_and_login(){
   htp_pw=$pw
   htp_users_string=$(printf ,%s ${HTP_USERS[@]})
   cluster_adm_user=$(extract_testvariables_users_mapping  htpasswd cluster_admin_username $htp_users_string)
-  if [ "${RETURN_PW}" -eq 1 ]
+  if [[ "${RETURN_PW}" -eq 1 ]]
       then
             echo cluster admin username $cluster_adm_user
       fi
   echo "--> Configuring HTP IDP and users"
-  if [ "${USE_OCM_IDP}" -eq 1 ]
+  if [[ "${USE_OCM_IDP}" -eq 1 ]]
     then
         CLUSTER_NAME=$(ocm list clusters  --no-headers --parameter search="api.url = '${OC_HOST}'" | awk '{print $2}')
         echo Cluster name is $CLUSTER_NAME
         ocm create idp -c "${CLUSTER_NAME}" -t htpasswd -n htpasswd --username $cluster_adm_user --password $htp_pw
         ocm create user $cluster_adm_user --cluster $CLUSTER_NAME --group=cluster-admins
     else
-        htp_string=$(htpasswd -b -B -n $cluster_adm_user $htp_pw)
-        oc create secret generic htpasswd-secret --from-literal=htpasswd="$htp_string" -n openshift-config
-        OAUTH_HTPASSWD_JSON="$(cat ods_ci/configs/resources/oauth_htp_idp.json)"
+        set -x
+        cluster_adm_user=cluster-adm-user
+        oc create user $cluster_adm_user  || :
+        oc adm groups add-users dedicated-admins $cluster_adm_user || :
+        oc create identity cluster-admin:$cluster_adm_user || :
+        oc create useridentitymapping cluster-admin:$cluster_adm_user $cluster_adm_user || :
+        #oc adm policy add-role-to-group  <role> <Group_name>  -n  <Project-name>
+        # oc adm policy add-role-to-group admin dedicated-admins
+
+        idp_secret=idp-secret  
+        # htp_string=$(htpasswd -b -B -n $cluster_adm_user $htp_pw)
+        printf "%s:%s\n" "${cluster_adm_user}" "$(openssl passwd -apr1 "${htp_pw}")" > passfile
+
+        oc delete secret ${idp_secret} -n openshift-config --ignore-not-found
+        # htpasswd -c -B -b passfile $cluster_adm_user $htp_pw
+        oc create secret generic ${idp_secret} --from-file=htpasswd=passfile -n openshift-config
+        # oc create secret generic idp-secret '--from-literal=htpasswd=htp-user-PHfyJwzNMqbCRAoFsjrV:$2y$05$iVhSmIKqf6XEo3GqFW6QsuBM0nUFi3bR7nMB6hkFpEENFiwkzk.UK' -n openshift-config
+        # oc create secret generic ${idp_secret} --from-literal=htpasswd="$htp_string" -n openshift-config
+        # OAUTH_HTPASSWD_JSON="$(cat ods_ci/configs/resources/oauth_htp_idp.json)"
+        OAUTH_HTPASSWD_JSON='{"name":"'${cluster_adm_user}'","mappingMethod":"claim","type":"HTPasswd","htpasswd":{"fileData":{"name":"'${idp_secret}'"}}}'
+        idp_user_index=$(oc get oauth cluster -o json  | jq '.spec.identityProviders | map(.name == "'${cluster_adm_user}'") | index(true)')
+        [[ "$idp_user_index" == null ]] || oc patch oauth cluster --type=json -p="[{'op': 'remove', 'path': '/spec/identityProviders/$idp_user_index'}]"
         oc patch oauth cluster --type json -p '[{"op": "add", "path": "/spec/identityProviders/-", "value": '"$OAUTH_HTPASSWD_JSON"'}]'
-        cp ods_ci/configs/templates/ca-rolebinding.yaml ods_ci/configs/ca-rolebinding.yaml
-        sed -i "s/<rolebinding_name>/ods-ci-htp-admin/g" ods_ci/configs/ca-rolebinding.yaml
-        sed -i "s/<username>/$cluster_adm_user/g" ods_ci/configs/ca-rolebinding.yaml
-        oc apply -f ods_ci/configs/ca-rolebinding.yaml
+        oc create clusterrolebinding ods-ci-htp-admin --clusterrole=cluster-admin --user="${cluster_adm_user}" || :
+        oc adm policy add-cluster-role-to-user cluster-admin "${cluster_adm_user}" --rolebinding-name cluster-admin
+        oc adm policy add-cluster-role-to-user admin "${cluster_adm_user}"
+        oc adm policy add-scc-to-user privileged "${cluster_adm_user}"
+
+        set +x
+        # cp ods_ci/configs/templates/ca-rolebinding.yaml ods_ci/configs/ca-rolebinding.yaml
+        # sed -i "s/<rolebinding_name>/ods-ci-htp-admin/g" ods_ci/configs/ca-rolebinding.yaml
+        # sed -i "s/<username>/$cluster_adm_user/g" ods_ci/configs/ca-rolebinding.yaml
+        # oc apply -f ods_ci/configs/ca-rolebinding.yaml
   fi
   # login using htpasswd
-  echo "----> Performing log in with newly created HTP user"
-  perform_oc_logic  $OC_HOST  $cluster_adm_user  $htp_pw
-
+  if [[ "$SKIP_OC_LOGIN" -ne 1 ]] ; then
+    echo "----> Performing log in with newly created HTP user"
+    perform_oc_logic  $OC_HOST  $cluster_adm_user  $htp_pw
+  fi
+  
   # add more htpasswd users, if present
   echo "---> Adding additional HTP users, if needed per requested configuration"
   secret_name=$(oc get oauth cluster -o json | jq -r '.spec.identityProviders[] | select(.htpasswd!=null) | .htpasswd.fileData.name')
@@ -205,7 +235,7 @@ function set_ldap_users(){
 
   # create ldap deployment
   oc apply -f ods_ci/configs/ldap.yaml
-  if [ "${USE_OCM_IDP}" -eq 1 ]
+  if [[ "${USE_OCM_IDP}" -eq 1 ]]
       then
           ocm_clusterid=$(ocm list clusters  --no-headers --parameter search="api.url = '${OC_HOST}'" | awk '{print $1}')
           # configure the jinja template for adding ldap idp in OCM
@@ -219,7 +249,10 @@ function set_ldap_users(){
           sed -i 's/{{ LDAP_URL }}/ldap:\/\/openldap.openldap.svc.cluster.local:1389\/dc=example,dc=org?uid/g' ods_ci/configs/create_ldap_idp.jinja
           ocm post /api/clusters_mgmt/v1/clusters/${ocm_clusterid}/identity_providers --body=ods_ci/configs/create_ldap_idp.jinja
       else
+          oc delete secret ldap-bind-password -n openshift-config --ignore-not-found
           oc create secret generic ldap-bind-password --from-literal=bindPassword="$RAND_ADMIN" -n openshift-config
+          idp_user_index=$(oc get oauth cluster -o json  | jq '.spec.identityProviders | map(.name == "ldap-provider-qe") | index(true)')
+          oc patch oauth cluster --type=json -p="[{'op': 'remove', 'path': '/spec/identityProviders/$idp_user_index'}]"
           OAUTH_LDAP_JSON="$(cat ods_ci/configs/resources/oauth_ldap_idp.json)"
           oc patch oauth cluster --type json -p '[{"op": "add", "path": "/spec/identityProviders/-", "value": '"$OAUTH_LDAP_JSON"'}]'
   fi
@@ -249,17 +282,17 @@ function set_ldap_users(){
 }
 
 function create_groups_and_assign_users(){
-  oc adm groups new rhods-admins
-  oc adm groups new rhods-users
-  oc adm groups new rhods-noaccess
-  oc adm groups new dedicated-admins
+  oc adm groups new rhods-admins || :
+  oc adm groups new rhods-users || :
+  oc adm groups new rhods-noaccess || :
+  oc adm groups new dedicated-admins || :
   for prefix in "${prefixes[@]}"; do
     groups=$(jq -r --arg idpname ldap --arg pref $prefix '.[][$idpname].groups_map[$pref][]' ods_ci/configs/templates/user_config.json)
     echo $groups
     groups=($groups)
     for group in "${groups[@]}"; do
       if [[ $group == *"dedicated-admins"* ]]; then
-          if [ "${USE_OCM_IDP}" -eq 1 ]
+          if [[ "${USE_OCM_IDP}" -eq 1 ]]
               then
                   add_users_to_ocm_dedicated_admins $prefix
                   continue
@@ -301,10 +334,12 @@ function install_identity_provider(){
 
 function check_installation(){
   echo "Stage) Looking for LDAP and HTPASSWD already present in the cluster..."
-  if [ "${USE_OCM_IDP}" -eq 1 ]
+  echo "1 USE_OCM_IDP = ${USE_OCM_IDP}"
+  if [[ "${USE_OCM_IDP}" -eq 1 ]]
       then
+         echo "2"
             ocm_clusterid=$(ocm list clusters  --no-headers --parameter search="api.url = '${OC_HOST}'" | awk '{print $1}')
-            if [ "${RETURN_PW}" -eq 1 ]
+            if [[ "${RETURN_PW}" -eq 1 ]]
               then
                   echo OCM cluster ID: $ocm_clusterid
             fi
@@ -436,7 +471,7 @@ function validate_user_config_fields_and_values(){
 
 function validate_user_config_file(){
   echo "Stage) validating user_config.json"
-  if [ ! -f "ods_ci/configs/templates/user_config.json" ]; then
+  if [[ ! -f "ods_ci/configs/templates/user_config.json" ]]; then
     echo user_config.json is not present in ods_ci/configs/templates! Fix it and try again...
     exit 1
   else
@@ -446,10 +481,19 @@ function validate_user_config_file(){
   validate_user_config_fields_and_values ldap
 }
 
-if [ "${USE_OCM_IDP}" -eq 1 ]
-      then
-          perform_ocm_login
+#### Main ####
+
+if [[ -z "$OC_HOST" ]] ; then
+  echo -e "Host variable \$OC_HOST must be set."
+  exit 1
 fi
+
+# Run perform_ocm_login() if $USE_OCM_IDP = 1
+[[ "${USE_OCM_IDP}" -ne 1 ]] || perform_ocm_login
+
 validate_user_config_file
-check_installation
+
+# Skip check_installation() if $FORCE_INSTALL = 1
+[[ "${FORCE_INSTALL}" -eq 1 ]] || check_installation
+
 install_identity_provider
