@@ -125,7 +125,7 @@ Verify RHODS Installation
     Wait For Deployment Replica To Be Ready    namespace=${APPLICATIONS_NAMESPACE}
     ...    label_selector=app=odh-model-controller    timeout=400s
     Wait For Deployment Replica To Be Ready    namespace=${APPLICATIONS_NAMESPACE}
-    ...    label_selector=component=model-mesh-etcd    timeout=400s
+    ...    label_selector=component=model-mesh-etcd    timeout=1200s
     Wait For Deployment Replica To Be Ready    namespace=${APPLICATIONS_NAMESPACE}
     ...    label_selector=app.kubernetes.io/name=modelmesh-controller    timeout=400s
   END
