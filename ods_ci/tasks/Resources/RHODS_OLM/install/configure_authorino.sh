@@ -31,3 +31,23 @@ else
     echo ">> Failed to annotate Authorino service" >&2
     exit 1
 fi
+
+# Wait for the TLS secret to be created by OpenShift's serving cert controller
+echo ">> Waiting for TLS secret to be created..."
+timeout=120
+elapsed=0
+while [[ $elapsed -lt $timeout ]]; do
+    if oc get secret/authorino-server-cert -n kuadrant-system &>/dev/null; then
+        echo ">> TLS secret created successfully"
+        exit 0
+    fi
+    echo ">> Waiting for TLS secret... ($elapsed seconds elapsed)"
+    sleep 5
+    elapsed=$((elapsed + 5))
+done
+
+# Check if secret exists
+if ! oc get secret/authorino-server-cert -n kuadrant-system &>/dev/null; then
+    echo ">> ERROR: TLS secret not found after $timeout seconds" >&2
+    exit 1
+fi
