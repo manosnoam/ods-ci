@@ -284,6 +284,7 @@ class ReportPortalClient:
                 "attributes": attributes or [],
             },
         )
+        print(f"  [DEBUG] POST /launch response: {resp}")
         launch_id = str(resp.get("id") or launch_uuid)
         return launch_uuid, launch_id
 
