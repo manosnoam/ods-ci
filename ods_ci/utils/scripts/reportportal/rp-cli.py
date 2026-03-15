@@ -53,6 +53,7 @@ import os
 import re
 import sys
 import tempfile
+import time
 import uuid as uuid_module
 import xml.etree.ElementTree as ET  # noqa: N817
 from datetime import datetime
@@ -264,16 +265,16 @@ class ReportPortalClient:
         return (existing["id"], False) if existing else (None, False)
 
     # Launch/Test item operations (for upload)
-    def start_launch(self, name: str, description: str = "", attributes: list | None = None) -> tuple[str, str]:
-        """Start a launch, returning (launch_uuid, launch_id).
+    def start_launch(self, name: str, description: str = "", attributes: list | None = None) -> str:
+        """Start a launch and return the server-assigned launch UUID.
 
-        launch_uuid: client-generated UUID passed as launchUuid in all item API calls.
-        launch_id:   server-assigned ID from POST /launch response, used in
-                     finish_launch() and UI URLs.  RP v1 returns {"id": <numeric>};
-                     falls back to launch_uuid if the response lacks an id field.
+        The UUID is sent in POST body and echoed back in resp["id"].  It is used
+        as launchUuid in all subsequent start_item / finish_item calls.
+        To obtain the numeric database ID (needed for finish and UI URLs), call
+        get_launch_numeric_id() after all items have been uploaded.
         """
         launch_uuid = str(uuid_module.uuid4())
-        resp = self.post(
+        self.post(
             "launch",
             {
                 "uuid": launch_uuid,
@@ -284,12 +285,42 @@ class ReportPortalClient:
                 "attributes": attributes or [],
             },
         )
-        print(f"  [DEBUG] POST /launch response: {resp}")
-        launch_id = str(resp.get("id") or launch_uuid)
-        return launch_uuid, launch_id
+        return launch_uuid
+
+    def get_launch_numeric_id(self, launch_uuid: str, launch_name: str) -> str:
+        """Resolve the numeric database ID for a launch.
+
+        Tries GET /launch/uuid/{uuid} up to 3 times (RP processes launches
+        asynchronously so a short retry is needed).  Falls back to a name-based
+        listing query when the UUID endpoint returns 4041 (seen on some RP
+        deployments).  Returns launch_uuid unchanged if all lookups fail.
+        """
+        for attempt in range(3):
+            if attempt > 0:
+                time.sleep(2**attempt)
+            resp = self.get(f"launch/uuid/{launch_uuid}")
+            if resp.get("errorCode"):
+                warn(
+                    f"  [WARN] GET /launch/uuid/{launch_uuid} failed "
+                    f"(attempt {attempt + 1}): {resp.get('message', resp)}"
+                )
+                continue
+            numeric_id = resp.get("id")
+            if isinstance(numeric_id, int):
+                return str(numeric_id)
+
+        # Fallback: find by name (most recently started launch with this name)
+        resp = self.get(f"launch?filter.eq.name={quote(launch_name)}" "&sort.desc.startTime&page.size=1")
+        content = resp.get("content", [])
+        if content and isinstance(content[0].get("id"), int):
+            warn("  [WARN] Resolved launch ID via name-based fallback")
+            return str(content[0]["id"])
+
+        warn(f"  [WARN] Could not resolve numeric launch ID; URL will use UUID: {launch_uuid}")
+        return launch_uuid
 
     def finish_launch(self, launch_id: str) -> None:
-        """Finish a launch by its server-assigned ID (numeric or UUID fallback)."""
+        """Finish a launch by its numeric database ID (or UUID as last resort)."""
         self.put(f"launch/{launch_id}/finish", {"endTime": self._timestamp()})
 
     def start_item(
@@ -793,8 +824,8 @@ def _upload_xunit(  # noqa: PLR0914
     if not testsuites:
         err("No testsuites found in xUnit file")
 
-    # Start launch — uuid for item linking, launch_id (numeric) for finish/URL
-    launch_uuid, launch_id = client.start_launch(launch_name, launch_desc, launch_attrs)
+    # Start launch — use UUID for item linking; resolve numeric ID before finish
+    launch_uuid = client.start_launch(launch_name, launch_desc, launch_attrs)
     print(f"  Started launch: {launch_uuid}")
 
     stats = {"total": 0, "passed": 0, "failed": 0, "skipped": 0}
@@ -838,6 +869,8 @@ def _upload_xunit(  # noqa: PLR0914
 
             client.finish_item(suite_uuid, launch_uuid, "PASSED")
 
+        # Resolve numeric database ID (needed for PUT finish and UI URL)
+        launch_id = client.get_launch_numeric_id(launch_uuid, launch_name)
         client.finish_launch(launch_id)
 
         print(
@@ -850,6 +883,7 @@ def _upload_xunit(  # noqa: PLR0914
     except Exception as e:
         print(f"Error during upload: {e}")
         try:
+            launch_id = client.get_launch_numeric_id(launch_uuid, launch_name)
             client.finish_launch(launch_id)
         except Exception:
             pass
