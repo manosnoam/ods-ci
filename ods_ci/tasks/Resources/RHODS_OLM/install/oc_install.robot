@@ -87,6 +87,7 @@ ${NFS_SUB_NAME}=    nfs-provisioner-operator-sub
 ${NFS_CHANNEL_NAME}=    alpha
 ${RESOURCES_DIRPATH}=    tasks/Resources/Files
 ${RHODS_OSD_INSTALL_REPO}=      ${EMPTY}
+${RHODS_OSD_INSTALL_REPO_BRANCH}=    main
 ${OLM_DIR}=                     rhodsolm
 @{SUPPORTED_TEST_ENV}=          AWS   AWS_DIS   GCP   GCP_DIS   PSI   PSI_DIS   ROSA   IBM_CLOUD   CRC    AZURE	ROSA_HCP
 ${install_plan_approval}=       Manual
@@ -497,7 +498,7 @@ Clone OLM Install Repo
       ${return_code}    ${output} =    Run And Return Rc And Output    git clone ${RHODS_OSD_INSTALL_REPO} ${EXECDIR}/${OLM_DIR}    #robocop:disable
       Log    ${output}    console=yes
       Should Be Equal As Integers   ${return_code}   0
-      ${return_code}    ${output} =    Run And Return Rc And Output    cd ${EXECDIR}/${OLM_DIR} && git checkout main    #robocop:disable
+      ${return_code}    ${output} =    Run And Return Rc And Output    cd ${EXECDIR}/${OLM_DIR} && git checkout ${RHODS_OSD_INSTALL_REPO_BRANCH}    #robocop:disable
       Log    ${output}    console=yes
       Should Be Equal As Integers   ${return_code}   0
   END
