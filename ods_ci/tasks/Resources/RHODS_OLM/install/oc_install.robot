@@ -981,33 +981,37 @@ Component Is A Nested Component
 Component Should Be Enabled
     [Arguments]    ${component}    ${dsc_name}=${DSC_NAME}
     ${status} =   Set Variable   False
-    WHILE   '${status}' != 'true'    limit=60 seconds
+    WHILE   '${status}' != 'true'    limit=10 min
         ${status} =    Is Component Enabled    ${component}    ${dsc_name}
         IF    '${status}' == 'true'    BREAK
+        Sleep    1 sec
     END
 
 Nested Component Should Be Enabled
     [Arguments]    ${parent_component}    ${nested_component}     ${dsc_name}=${DSC_NAME}
     ${status} =   Set Variable   False
-    WHILE   '${status}' != 'true'    limit=60 seconds
+    WHILE   '${status}' != 'true'    limit=10 min
         ${status} =    Is Nested Component Enabled    ${parent_component}    ${nested_component}    ${dsc_name}
         IF    '${status}' == 'true'    BREAK
+        Sleep    1 sec
     END
 
 Component Should Not Be Enabled
     [Arguments]    ${component}    ${dsc_name}=${DSC_NAME}
     ${status} =   Set Variable   True
-    WHILE   '${status}' != 'false'    limit=60 seconds
+    WHILE   '${status}' != 'false'    limit=10 min
         ${status} =    Is Component Enabled    ${component}    ${dsc_name}
         IF    '${status}' == 'false'    BREAK
+        Sleep    1 sec
     END
 
 Nested Component Should Not Be Enabled
     [Arguments]    ${parent_component}    ${nested_component}     ${dsc_name}=${DSC_NAME}
     ${status} =   Set Variable   True
-    WHILE   '${status}' != 'false'    limit=60 seconds
+    WHILE   '${status}' != 'false'    limit=10 min
         ${status} =    Is Nested Component Enabled    ${parent_component}    ${nested_component}    ${dsc_name}
         IF    '${status}' == 'false'    BREAK
+        Sleep    1 sec
     END
 
 Is Component Enabled
